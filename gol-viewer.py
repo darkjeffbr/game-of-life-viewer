@@ -1,102 +1,134 @@
+
 from tkinter import *
 import argparse
 import threading
 import queue
 import time
 
-class FileReader:
+class Configuration:
+    def __init__(self, inputFileName, columns, rows):
+        self.inputFileName = inputFileName
+        self.columns = columns
+        self.rows = rows
+    def __str__(self):
+        return "file name: " + self.inputFileName + ", columns: " + str(self.columns) + ", rows: " + str(self.rows)
+
+class FileReader(threading.Thread):
     def __init__(self, inputFileName, queue):
+        super().__init__()
         self.inputFileName = inputFileName
         self.queue = queue
-
-        self.thread = threading.Thread(target=self.readFile)
-        self.thread.start()
-        self.keepReading = True
+        self.keepRunning = True
     
-    def readFile(self):
-        data = []
-        with open(self.inputFileName, 'r') as file:
-            x = 0
-            for line in file:
-                line = line.replace('\n', '')
-                data.append([])
-                for cell in line:
-                    data[x].append(cell)
-                x = x + 1
-            self.queue.put(data)
+    def run(self):
+        while(self.keepRunning):
+            if(not self.keepRunning):
+                break
+            data = []
+            with open(self.inputFileName, 'r') as file:
+                x = 0
+                for line in file:
+                    line = line.replace('\n', '')
+                    data.append([])
+                    for cell in line:
+                        data[x].append(cell)
+                    x = x + 1
+                self.queue.put(data)
 
-        time.sleep(0.2)
-
-        if(self.keepReading):
-            pass
-            #self.readFile()
+            time.sleep(0.1)
+            
     
-    def stopReading(self):
-        self.keepReading = False
+    def stop(self):
+        self.keepRunning = False
+
+class ViewUpdater(threading.Thread):
+    def __init__(self, configuration, world, queue):
+        super().__init__()
+        self.configuration = configuration
+        self.world = world
+        self.queue = queue
+        self.keepRunning = True
+    
+    def run(self):
+        while(self.keepRunning):
+            if(not self.keepRunning):
+                break
+
+            fileContent = self.queue.get()
+            for y in range(self.configuration.rows):
+                for x in range(self.configuration.columns):
+                    bg_color = "white"
+                    if(fileContent[y][x] == "1"):
+                        bg_color = "blue"
+                    self.world[y][x].config(bg = bg_color)
+
+            
+    
+    def stop(self):
+        self.keepRunning = False
 
 class ViewerWindow:
-    def __init__(self, inputFileName):
+
+    def __init__(self, configuration):
         self.setupWindow()
         self.queue = queue.Queue()
-        self.inputFileName = inputFileName
-
-        # Start the file reading process
-        # this process will write to the queue each 0.2s
-        self.fileReader = FileReader(inputFileName, self.queue)
-
-        self.running = True
+        self.configuration = configuration
     
     def setupWindow(self):
         self.window = Tk()
         self.window.title('Game of Life Viewer')
         self.window.resizable(False, False)
         self.window.protocol("WM_DELETE_WINDOW", self.close)
-        
 
-    def refresh(self):
-        fileContent = self.queue.get(True)
-        print('something read')
-        print(fileContent)
-        y = 0
-        for line in fileContent:
-            x = 0
-            for cell in line:
-                #self.createLabel(cell, x*10, y*10)
-                x += 1
-            y += 1
-        
-        print(self.running)
+    def createWorld(self):
+        self.world = []
+        for y in range(self.configuration.rows):
+            self.world.append([])
+            for x in range(self.configuration.columns):
+                cell = self.createCell(x*10, y*10)
+                self.world[y].append(cell);
 
-        if(self.running):
-            print('calling again')
-            self.refresh()
-        
+    def updateWorld(self):
 
-    def show(self):
-        self.window.mainloop()
-        self.refresh()
+        # Start the file reading process
+        # this process will write to the queue
+        self.fileReader = FileReader(self.configuration.inputFileName, self.queue)
+        self.fileReader.start()
 
-    def close(self):
-        self.running = False
-        self.fileReader.stopReading()
-        self.window.destroy()        
+        self.viewUpdater = ViewUpdater(self.configuration, self.world, self.queue)
+        self.viewUpdater.start()
 
-    def createLabel(self, labelValue, posX, posY):
+    def createCell(self, posX, posY):
         try:
-            bg_colour = "white"
-            if(labelValue == "1"):
-                bg_colour = "blue"
-            return Label(self.window, relief=GROOVE, bg = bg_colour, width=2).grid(row = posY, column=posX)
+            cell = Label(self.window, relief=GROOVE, bg = "white", width=2)
+            cell.grid(row = posY, column=posX)
+            return cell
         except Exception:
             pass
 
-def parseArgumentsAndGetFileName():
+    def show(self):
+        self.createWorld()
+        self.updateWorld()
+        self.window.mainloop()
+
+    def close(self):
+        self.running = False
+        self.fileReader.stop()
+        self.viewUpdater.stop()
+        self.window.destroy()
+
+    
+
+def parseArgumentsAndBuildConfiguration():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f','--file', dest='file_name', default='input.txt', help='File name to read the grid')
+    parser.add_argument('-c','--column', dest='columns', default=10, help='Number of columns')
+    parser.add_argument('-r','--row', dest='rows', default=10, help='Number of elements per row')
     args = parser.parse_args()
-    return args.file_name
+
+    return Configuration(args.file_name, args.columns, args.rows)
 
 if __name__ == '__main__':
-    fileName = parseArgumentsAndGetFileName()
-    viewerWindow = ViewerWindow(fileName)
+    configuration = parseArgumentsAndBuildConfiguration()
+    viewerWindow = ViewerWindow(configuration)
     viewerWindow.show()
