@@ -52,3 +52,11 @@ By default if no value is given the grid will have 10 rows and 10 columns.
 ```
  $ ./gol-viewer.py -h
 ```
+
+Input File Format
+-----------------
+
+Currently the viewer supports ASCII text file.
+The representation of a cell in the worls is a single char that can be either a 0 or a 1 for a live cell.
+
+- [ ] Add support for '.' and '*' as in the original kata
