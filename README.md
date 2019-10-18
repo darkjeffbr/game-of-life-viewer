@@ -4,7 +4,7 @@ Game of Life Viewer
 This is a simple game of life viewer.
 It was written in Python using Tk as the graphical user interface toolkit.
 
-The viewer keeps reading from a text file with the grid. Every time the content of the file changes the grid is automatically updated.
+The viewer keeps reading from a text file with the grid representation. Every time the content of the file changes the grid is automatically updated.
 
 Usage
 -----
